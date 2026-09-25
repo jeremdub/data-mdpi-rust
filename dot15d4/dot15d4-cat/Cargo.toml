@@ -1,0 +1,21 @@
+[package]
+name = "dot15d4-cat"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dot15d4-frame = { path = "../dot15d4-frame" }
+
+colored = "3"
+clap = { version = "4.5.1", features = ["derive"] }
+hex = "0.4.3"
+
+[dev-dependencies]
+strip-ansi-escapes = "0.2.1"
+
+[[bin]]
+name = "dot15d4"
+path = "src/main.rs"

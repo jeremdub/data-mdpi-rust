@@ -1,0 +1,67 @@
+[package]
+edition = "2021"
+name = "dot15d4-util"
+version = "0.0.1"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+allocator-api2 = { version = "0.3", default-features = false }
+bitmaps = { version = "3.2", default-features = false }
+heapless = "0.8"
+static_cell = "2.1"
+
+defmt = { version = "1.0", optional = true }
+log = { version = "0.4", optional = true }
+
+cty = { version = "0.2", optional = true }
+rtos-trace = { version = "0.2", optional = true }
+rtt-target = { version = "0.6.2", optional = true }
+systemview-target = { version = "0.3", features = [
+    "callbacks-app",
+    "callbacks-os",       # required for embassy integration
+    "log",
+    "ext-rtt-channels-2", # log/defmt, sync and systemview
+], optional = true }
+
+[dev-dependencies]
+embassy-executor = {git = "https://github.com/embassy-rs/embassy.git", rev="d81dde36221b30c09d11eed02b8b9776bb361eb6", features = [
+    "executor-thread",
+    "arch-std",
+] }
+embassy-time = {git = "https://github.com/embassy-rs/embassy.git", rev="d81dde36221b30c09d11eed02b8b9776bb361eb6", features = [
+    "std",
+] }
+embedded-hal-async = "1.0"
+env_logger = "0.11"
+heapless = "0.8"
+log = "0.4"
+pollster = { version = "0.4", features = ["macro"] }
+rand = "0.9"
+
+[features]
+std = ["bitmaps/std", "allocator-api2/std"]
+
+defmt = ["dep:defmt", "dep:rtt-target", "rtt-target/defmt"]
+log = ["dep:log", "dep:rtt-target"]
+rtos-trace = [
+    "dep:cty",
+    "dep:rtos-trace",
+    "dep:rtt-target",
+    "dep:systemview-target",
+    "embassy-executor/rtos-trace",
+]
+
+_clippy-std = ["std"]
+_clippy-no-std = []
+
+[[example]]
+name = "sync-channel-buffered"
+path = "examples/sync/channel/buffered.rs"
+
+[[example]]
+name = "sync-channel-mpmc"
+path = "examples/sync/channel/mpmc.rs"
+
+[[example]]
+name = "sync-channel-mpsc"
+path = "examples/sync/channel/mpsc.rs"

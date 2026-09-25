@@ -1,0 +1,122 @@
+[package]
+name = "dot15d4"
+version = "0.1.2"
+edition = "2021"
+repository = "https://github.com/dot15d4-rs/dot15d4"
+description = "IEEE 802.15.4 implementation in Rust"
+license = "MIT OR Apache-2.0"
+categories = ["embedded", "network-programming", "no-std"]
+keywords = ["ieee802154", "WPAN", "smoltcp"]
+
+[dependencies]
+dot15d4-util = { version = "0.0.1", path = "../dot15d4-util" }
+dot15d4-driver = { version = "0.0.1", path = "../dot15d4-driver" }
+dot15d4-frame = { version = "0.0.1", path = "../dot15d4-frame", default-features = false }
+
+embassy-sync = { git = "https://github.com/embassy-rs/embassy.git", rev="d81dde36221b30c09d11eed02b8b9776bb361eb6"}
+
+log = { version = "0.4.21", optional = true }
+defmt = { version = "1.0", optional = true }
+
+paste = "1.0"
+heapless = { version = "0.8" }
+rand_core = { version = "0.6", default-features = false }
+
+
+arbitrary = { version = "1.3.2", features = ["derive"], optional = true }
+# Also a dev-dependency for the test harness; declared here as optional so the
+# `_fuzz-harness` feature can build that same harness as library code.
+static_cell = { version = "2", optional = true }
+
+rtos-trace = { version = "0.2", optional = true }
+
+[dev-dependencies]
+static_cell = "2"
+
+[features]
+default = ["security", "ies", "dot15d4-frame/strict"]
+
+## Enable std-only features
+std = ["log"]
+
+## Use tracing for logging
+log = ["dep:log", "dot15d4-driver/log", "dot15d4-util/log"]
+
+## Use defmt for logging
+defmt = ["dep:defmt", "dot15d4-driver/defmt", "dot15d4-util/defmt"]
+
+## Enable fuzzing
+fuzz = ["dep:arbitrary"]
+
+## Build the in-crate fuzz harness (targets T3 and T4). This compiles the
+## scheduler test infrastructure as library code and enables the fuzz_api
+## module. It is kept separate from `fuzz` so the clippy features do not pull
+## the whole harness into a normal build.
+_fuzz-harness = ["fuzz", "dep:static_cell", "std", "tsch-coordinator"]
+
+# Support for security
+security = ["dot15d4-frame/security"]
+
+# Support for information elements
+ies = ["dot15d4-frame/ies"]
+
+# Support for TSCH
+tsch = ["ies"]
+
+# TSCH association responder (accept association requests from devices).
+# Beacon transmission is part of plain `tsch`: in a multi-hop network every
+# node may send Enhanced Beacons, not only the PAN coordinator.
+tsch-coordinator = ["tsch"]
+
+# Trace the TSCH state machine: slot scheduling and link selection, CSMA-CA
+# backoff decisions, TX/RX outcomes and resyncs. Needs a logging backend
+# (log/defmt) to produce output; without one, and without this feature, the
+# instrumentation compiles away entirely.
+tsch-log = ["tsch"]
+
+# Build and accept Enhanced ACKs without a destination address, i.e. matched by
+# sequence number alone.
+#
+# This reverts the acknowledgment to a frame that identifies no recipient. Every
+# device that transmitted with the same sequence number in the same
+# acknowledgment window then accepts it, so several senders contending in one
+# shared TSCH cell all report success although at most one frame was received,
+# and the CSMA-CA retransmission procedure never runs. Provided to reproduce and
+# measure that failure mode; not for production use.
+no-enh-ack-addressing = ["dot15d4-frame/no-enh-ack-addressing"]
+
+# Disable Enh-Ack-based synchronization in TSCH network
+no-tsch-ack-sync = []
+
+# Disable frame-based synchronization in TSCH network
+no-tsch-frame-sync = []
+
+# Disable clock drift adjustment in TSCH network
+no-tsch-drift-adjustment = []
+
+# Log the per-resync TSCH sync error (predicted minus measured slot start, in
+# nanoseconds, stamped with the ASN) on both the frame and ACK paths. Needs a
+# logging backend (log/defmt) to produce output.
+sync-error-log = []
+
+# Tracing
+executor-trace = ["dot15d4-driver/executor-trace"]
+timer-trace = ["dot15d4-driver/timer-trace"]
+radio-trace = ["dot15d4-driver/radio-trace"]
+rtos-trace = [
+    "dep:rtos-trace",
+    "dot15d4-util/rtos-trace",
+    "dot15d4-driver/rtos-trace",
+]
+
+# Use an external sleep timer clock source.
+#
+# Note: MUST be enabled while the LF clock pin (X1) is actively driven by an
+#       external signal otherwise your hardware may be damaged.
+ext-lf-clk = ["dot15d4-driver/ext-lf-clk"]
+
+# Support for Nordic nrf52840
+nrf52840 = ["dot15d4-driver/nrf52840"]
+
+_clippy-std = ["std", "fuzz"]
+_clippy-no-std = ["default"]

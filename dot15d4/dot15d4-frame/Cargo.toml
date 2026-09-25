@@ -1,0 +1,38 @@
+[package]
+name = "dot15d4-frame"
+version = "0.0.1"
+edition = "2021"
+authors = ["Florian Grandel <fgrandel@code-for-humans.de>"]
+repository = "https://github.com/dot15d4-rs/dot15d4"
+description = "Frame parsing and building for the dot15d4 crate"
+license = "MIT OR Apache-2.0"
+categories = ["embedded", "network-programming", "no-std"]
+keywords = ["ieee802154", "wpan", "smoltcp"]
+
+[dependencies]
+dot15d4-util = { version = "0.0.1", path = "../dot15d4-util" }
+dot15d4-driver = { version = "0.0.1", path = "../dot15d4-driver" }
+
+bitflags = "2"
+
+[dev-dependencies]
+static_cell = "2.1"
+
+[features]
+strict = []                             # enable to deny warnings
+security = []
+ies = []
+
+# Expose support types for fuzzing the parser and builder (see src/fuzz.rs).
+# Off by default and never enabled on device builds.
+fuzz = []
+
+# Build Enhanced ACKs without a destination address, i.e. matched by sequence
+# number alone. Reproduces pre-fix behaviour; see the dot15d4 crate's feature
+# of the same name.
+no-enh-ack-addressing = []
+
+default = ["strict", "security", "ies"]
+
+_clippy-std = []
+_clippy-no-std = ["default"]

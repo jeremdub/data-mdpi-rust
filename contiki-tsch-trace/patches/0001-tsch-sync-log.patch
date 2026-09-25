@@ -1,0 +1,48 @@
+diff --git a/os/net/mac/tsch/tsch-slot-operation.c b/os/net/mac/tsch/tsch-slot-operation.c
+index 507c102b1..d2f0c28b8 100644
+--- a/os/net/mac/tsch/tsch-slot-operation.c
++++ b/os/net/mac/tsch/tsch-slot-operation.c
+@@ -76,6 +76,13 @@
+ #define TSCH_DEBUG_SLOT_END()
+ #endif
+ 
++#if TSCH_TRACE
++#include <stdint.h>
++void tsch_trace_log_sync(uint32_t asn_ls4b, const char *src, int32_t err_ns);
++/* Nanoseconds per rtimer tick: 16000 on nRF52840 (RTIMER_SECOND == 62500). */
++#define TSCH_TRACE_NS_PER_TICK ((int32_t)(1000000000L / RTIMER_SECOND))
++#endif /* TSCH_TRACE */
++
+ /* Check if TSCH_MAX_INCOMING_PACKETS is power of two */
+ #if (TSCH_MAX_INCOMING_PACKETS & (TSCH_MAX_INCOMING_PACKETS - 1)) != 0
+ #error TSCH_MAX_INCOMING_PACKETS must be power of two
+@@ -711,6 +718,13 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
+                     );
+                   }
+                   tsch_stats_on_time_synchronization(eack_time_correction);
++#if TSCH_TRACE
++                  /*
++                   * ACK-based synchronisation error.
++                   */
++                  tsch_trace_log_sync((uint32_t)tsch_current_asn.ls4b, "ack",
++                                      (int32_t)ack_ies.ie_time_correction * 1000);
++#endif /* TSCH_TRACE */
+                   is_drift_correction_used = 1;
+                   tsch_timesync_update(current_neighbor, since_last_timesync, drift_correction);
+                   /* Keep track of sync time */
+@@ -923,6 +937,15 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
+             estimated_drift = RTIMER_CLOCK_DIFF(expected_rx_time, rx_start_time);
+             tsch_stats_on_time_synchronization(estimated_drift);
+ 
++#if TSCH_TRACE
++            /*
++             * Frame-based synchronisation error, logged before the
++             * TSCH_TIMESYNC_REMOVE_JITTER.
++             */
++            tsch_trace_log_sync((uint32_t)tsch_current_asn.ls4b, "frame",
++                                (int32_t)estimated_drift * TSCH_TRACE_NS_PER_TICK);
++#endif /* TSCH_TRACE */
++
+ #if TSCH_TIMESYNC_REMOVE_JITTER
+             /* remove jitter due to measurement errors */
+             if(ABS(estimated_drift) <= TSCH_TIMESYNC_MEASUREMENT_ERROR) {
