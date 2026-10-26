@@ -475,14 +475,19 @@ impl<ReadWriteMpdu: AsRef<MpduFrame> + AsMut<MpduFrame>>
 impl<ReadOnlyMpdu: AsRef<MpduFrame>> MpduParser<ReadOnlyMpdu, MpduWithAddressing> {
     /// Parses the frame control field to identify the security configuration of
     /// the MPDU.
-    pub fn parse_security(self) -> MpduParser<ReadOnlyMpdu, MpduWithSecurity> {
-        // TODO: implement
-        debug_assert!(!self.frame_control().security_enabled());
+    ///
+    /// Security processing is not implemented yet, so a frame with the
+    /// Security Enabled bit set is rejected: the caller must handle the error,
+    /// in every build profile.
+    pub fn parse_security(self) -> SimplifiedResult<MpduParser<ReadOnlyMpdu, MpduWithSecurity>> {
+        if self.frame_control().security_enabled() {
+            return Err(Error);
+        }
 
-        MpduParser {
+        Ok(MpduParser {
             mpdu_field_ranges: self.mpdu_field_ranges.without_security(),
             mpdu: self.mpdu,
-        }
+        })
     }
 }
 
@@ -622,30 +627,11 @@ impl<ReadOnlyMpdu: AsRef<MpduFrame>> MpduParser<ReadOnlyMpdu, MpduWithAllFields>
 /// Exposes read-only IE field access from a fully parsed MPDU.
 #[cfg(feature = "ies")]
 impl<ReadOnlyMpdu: AsRef<MpduFrame>> MpduParser<ReadOnlyMpdu, MpduWithAllFields> {
-    /// Returns the raw IE bytes slice.
-    ///
-    /// # Panics
-    /// Panics if no IEs are present in the frame.
-    #[inline]
-    pub fn ies_slice(&self) -> &[u8] {
-        let range = self
-            .mpdu_field_ranges
-            .try_range_ies()
-            .expect("No IEs present in frame");
-        &self.mpdu.as_ref().buffer[range]
-    }
-
     /// Returns the raw IE bytes slice, or `None` if no IEs present.
     #[inline]
     pub fn try_ies_slice(&self) -> Option<&[u8]> {
         let range = self.mpdu_field_ranges.try_range_ies()?;
         Some(&self.mpdu.as_ref().buffer[range])
-    }
-
-    /// Returns an `IesFields` accessor for structured IE access.
-    #[inline]
-    pub fn ies_fields(&self) -> IesFields<&[u8]> {
-        IesFields::new(self.ies_slice())
     }
 
     /// Returns an `IeFields` accessor, or `None` if no IEs present.

@@ -425,6 +425,7 @@ mod test {
             .parse_addressing()
             .unwrap()
             .parse_security()
+            .unwrap()
             .parse_ies::<FakeDriverConfig>()
             .unwrap();
 
@@ -433,7 +434,7 @@ mod test {
         assert!(addressing.try_src_pan_id().is_none());
         assert_eq!(addressing.try_dst_address().unwrap().as_le_bytes(), &TEST_DST);
 
-        let ies = reader.ies_fields();
+        let ies = reader.try_ies_fields().unwrap();
         let time_correction_ie = ies.time_correction().unwrap();
         assert!(time_correction_ie.time_sync() == 42);
         assert!(time_correction_ie.nack());
@@ -513,6 +514,7 @@ mod test {
                 .parse_addressing()
                 .unwrap()
                 .parse_security()
+                .unwrap()
                 .parse_ies::<FakeDriverConfig>()
                 .unwrap();
             let fields = reader.try_addressing_fields().unwrap();

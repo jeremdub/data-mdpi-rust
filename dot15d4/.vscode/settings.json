@@ -1,0 +1,24 @@
+{
+    // For embedded development
+    "rust-analyzer.cargo.allTargets": false, // comment for testing
+    "rust-analyzer.cargo.target": "thumbv7em-none-eabihf", // comment for testing
+    "rust-analyzer.cargo.noDefaultFeatures": true, // comment for testing
+    "rust-analyzer.imports.preferNoStd": true, // comment for testing
+    "rust-analyzer.cargo.features": ["_clippy-no-std", "dot15d4/tsch-coordinator", "tsch-coordinator"], // comment for testing
+
+    // For unit tests
+    // "rust-analyzer.cargo.allTargets": true, // comment for testing
+    // "rust-analyzer.cargo.features": ["_clippy-std", "dot15d4/tsch"], // uncomment for testing
+    // "rust-analyzer.cargo.noDefaultFeatures": false, // comment for testing
+    // "rust-analyzer.imports.preferNoStd": false, // comment for testing
+    // "rust-analyzer.cargo.target": "aarch64-apple-darwin", // uncomment for testing
+
+    "rust-analyzer.check.workspace": false,
+    //"rust-analyzer.linkedProjects": [
+    //  "dot15d4-util/Cargo.toml",
+    //  "dot15d4-driver/Cargo.toml",
+    //  "dot15d4-frame/Cargo.toml",
+    //  "dot15d4/Cargo.toml",
+    //  "dot15d4-embassy/Cargo.toml",
+    //]
+}

@@ -1,178 +1,169 @@
 #!/usr/bin/env python3
-"""E3b and E3c: the Contiki-NG rows of Table 7.
+"""E3b and E3c: the Contiki-NG rows of Table 8 and Supplementary Table S9.
 
-    python3 check_e3.py e3b-e3c-sync_error_contiki/e3b-run1 ... # 16 us tick
-    python3 check_e3.py e3b-e3c-sync_error_contiki/e3c-run1 ... # 1 us tick
+    python3 check_e3.py                       # every e3b-run* and e3c-run*
+    python3 check_e3.py --latex               # the rows of Table S9
 
-A run folder holds the Logic 2 export (Time [s], Channel 9 = the coordinator's
-frame pin, Channel 10 = the leaf's slot pin, Channel 11 = the timer compare
-that starts the leaf's slot) and the node log (time_s, node, asn, src, err_ns).
-The folders given are pooled. The dot15d4 rows of the same table come from
-check_e2.py.
+Each beacon gives two errors after the 600 s warm-up: the analyzer interval from
+the leaf's receive-window event (Channel 11) to the coordinator's frame start
+(Channel 9), referred to the median of its run, and the err_ns the leaf logs.
+The two are paired by time, so a lost beacon or a dropped log line costs one
+sample. Intervals are 95% over the per-run mean absolute errors (Student's t).
 """
-
+import argparse
 import bisect
 import csv
-import glob
 import math
 import statistics
-import sys
+from pathlib import Path
 
-SLOT = 0.010     # timeslot, s
-WARMUP = 600.0   # s discarded at the start of a run
-LOW = 1900.0     # the leaf starts its slot about 2.13 ms before the RMARKER,
-HIGH = 2400.0    # so a lead outside this window is a slot the leaf missed
+WARMUP_S = 600.0
+SAME_SLOT_S = 0.004
+TX_CHANNEL, RX_CHANNEL = 0, 2
+PAIR_TOL_S = 0.30
+T975 = {1: 12.7062, 2: 4.3027, 3: 3.1824, 4: 2.7764, 5: 2.5706, 6: 2.4469, 7: 2.3646,
+        8: 2.3060, 9: 2.2622, 10: 2.2281, 11: 2.2010, 12: 2.1788, 13: 2.1604, 14: 2.1448}
 
 
-def rising_edges(path, name):
-    """Every time the named channel goes from 0 to 1."""
-    out = []
-    handle = open(path)
-    rows = csv.reader(handle)
-    header = next(rows)
-    column = header.index(name)
-    previous = None
-    for row in rows:
-        level = int(row[column])
-        if previous == 0 and level == 1:
-            out.append(float(row[0]))
-        previous = level
-    handle.close()
+def rising(path, channel):
+    out, prev = [], None
+    with open(path) as f:
+        rows = csv.reader(f)
+        next(rows)
+        for row in rows:
+            v = int(row[1 + channel])
+            if prev == 0 and v == 1:
+                out.append(float(row[0]))
+            prev = v
     return out
 
 
-def read_sync(path):
-    rows = []
-    handle = open(path, newline="")
-    for row in csv.DictReader(handle):
-        rows.append({"time_s": float(row["time_s"]),
-                     "asn": int(row["asn"]),
-                     "err_us": float(row["err_ns"]) / 1000.0})
-    handle.close()
-    return rows
+def analyzer_beacons(d):
+    tx = rising(d / "logic-analyzer.csv", TX_CHANNEL)
+    rx = rising(d / "logic-analyzer.csv", RX_CHANNEL)
+    out = []
+    for b in tx:
+        i = bisect.bisect_left(rx, b)
+        if i and b - rx[i - 1] < SAME_SLOT_S:
+            out.append((b, (rx[i - 1] - b) * 1e6))
+    return out
 
 
-def leads(beacons, compares):
-    """How long before each beacon the leaf started its slot, in us.
-
-    Beacons the leaf did not open a slot for are dropped.
-    """
-    kept_beacons = []
-    kept_leads = []
-    for beacon in beacons:
-        i = bisect.bisect_left(compares, beacon) - 1
-        if i < 0:
-            i = 0
-        if i >= len(compares):
-            i = len(compares) - 1
-        lead = (beacon - compares[i]) * 1e6
-        if LOW < lead < HIGH:
-            kept_beacons.append(beacon)
-            kept_leads.append(lead)
-    return kept_beacons, kept_leads
+def software_samples(d):
+    with open(d / "interop_contiki-coord_contiki-leaf.csv") as f:
+        return sorted((float(r["time_s"]), int(r["asn"]), int(r["err_ns"]))
+                      for r in csv.DictReader(f) if r["src"] == "frame")
 
 
-def align(beacons, asns):
-    """Line the analyzer beacons up with the logged ones, by their gaps.
-
-    Returns the offset into the analyzer series and how many pairs it gives.
-    """
-    analyzer_gaps = []
-    for a, b in zip(beacons, beacons[1:]):
-        analyzer_gaps.append(round((b - a) / SLOT))
-    node_gaps = []
-    for a, b in zip(asns, asns[1:]):
-        node_gaps.append(b - a)
-
-    best_offset = 0
-    best_score = -1
-    best_pairs = 0
-    for offset in range(len(analyzer_gaps) - len(node_gaps) + 4):
-        pairs = min(len(node_gaps), len(analyzer_gaps) - offset)
-        score = 0
-        for i in range(pairs):
-            if analyzer_gaps[offset + i] == node_gaps[i]:
-                score += 1
-        if score > best_score:
-            best_score = score
-            best_offset = offset
-            best_pairs = pairs
-    return best_offset, best_pairs + 1, best_score
+def offset(la, sw, binw=0.05):
+    swt = [s[0] for s in sw]
+    hist = {}
+    for lt, _ in la:
+        i = bisect.bisect_left(swt, lt - 12.0)
+        while i < len(swt) and swt[i] < lt + 12.0:
+            k = round((swt[i] - lt) / binw)
+            hist[k] = hist.get(k, 0) + 1
+            i += 1
+    if not hist:
+        return 0.0
+    k = max(hist, key=hist.get)
+    vals = []
+    for lt, _ in la:
+        i = bisect.bisect_left(swt, lt + (k - 1.5) * binw)
+        while i < len(swt) and swt[i] <= lt + (k + 1.5) * binw:
+            vals.append(swt[i] - lt)
+            i += 1
+    return statistics.median(vals)
 
 
-def read_run(folder):
-    path = folder + "/logic-analyzer.csv"
-    beacons = rising_edges(path, "Channel 9")     # RMARKER of each beacon on air
-    compares = rising_edges(path, "Channel 11")   # the leaf's slot-start compares
-    beacons, lead = leads(beacons, compares)
-
-    rows = read_sync(glob.glob(folder + "/*interop*.csv")[0])
-    asns = []
-    for row in rows:
-        asns.append(row["asn"])
-    offset, n, score = align(beacons, asns)
-    print("  %s: matched %d of %d gaps at offset %d" % (folder, score, n - 1, offset))
-    lead = lead[offset:offset + n]
-    rows = rows[:n]
-
-    # The constant part of the lead is the timeslot template plus the probe
-    # offsets, so only the variation around it is the error.
-    middle = statistics.median(lead)
-
-    software = []
-    analyzer = []
-    for row, value in zip(rows, lead):
-        if row["time_s"] <= WARMUP:
+def pair(la, sw):
+    off = offset(la, sw)
+    swt = [s[0] for s in sw]
+    used, recent, out = set(), [], []
+    for lt, interval in la:
+        target = lt + (off if len(recent) < 10 else statistics.median(recent[-40:]))
+        i = bisect.bisect_left(swt, target)
+        best = bestd = None
+        for j in (i - 1, i, i + 1):
+            if 0 <= j < len(swt) and j not in used and (bestd is None or abs(swt[j] - target) < bestd):
+                best, bestd = j, abs(swt[j] - target)
+        if best is None or bestd > PAIR_TOL_S:
             continue
-        software.append(row["err_us"])
-        analyzer.append(middle - value)
-    return software, analyzer
+        used.add(best)
+        recent.append(swt[best] - lt)
+        out.append((lt, interval, sw[best][2]))
+    return out
 
 
-def timestamp_step(values):
-    """The stack's own tick, read off the values it logged."""
-    step = 0
-    for value in values:
-        ticks = abs(round(value * 1000))
-        if ticks > 0:
-            step = math.gcd(step, ticks)
-    return step / 1000.0
+def stats(xs):
+    return (len(xs), statistics.fmean(map(abs, xs)),
+            statistics.stdev(xs) if len(xs) > 1 else 0.0, max(map(abs, xs)))
 
 
-def show(name, values, step):
-    absolute = []
-    for v in values:
-        absolute.append(abs(v))
-    mae = statistics.fmean(absolute)
-    print("  %-22s %6d %7.3f %7.3f %7.3f %7.2f"
-          % (name, len(values), statistics.stdev(values), mae, max(absolute), mae / step))
+def corr(a, b):
+    ma, mb = statistics.fmean(a), statistics.fmean(b)
+    da = math.sqrt(sum((x - ma) ** 2 for x in a))
+    db = math.sqrt(sum((y - mb) ** 2 for y in b))
+    return sum((x - ma) * (y - mb) for x, y in zip(a, b)) / (da * db) if da and db else 0.0
 
 
-folders = sys.argv[1:]
-if not folders:
-    folders = ["."]
+def ci95(values):
+    m = statistics.fmean(values)
+    h = T975[len(values) - 1] * statistics.stdev(values) / math.sqrt(len(values))
+    return m - h, m + h
 
-software = []
-analyzer = []
-for folder in folders:
-    a, b = read_run(folder)
-    software += a
-    analyzer += b
 
-step = timestamp_step(software)
-print("%s: %d paired beacons, step %.3f us" % (", ".join(folders), len(software), step))
-print("  %-22s %6s %7s %7s %7s %7s" % ("series (us)", "n", "sd", "MAE", "max", "MAE/step"))
-show("software estimate", software, step)
-show("analyzer estimate", analyzer, step)
+def summary(name, la_e, sw_e):
+    return {"name": name, "n": len(la_e), "la": stats(la_e), "sw": stats(sw_e),
+            "zero": 100.0 * sum(1 for b in sw_e if b == 0.0) / len(sw_e),
+            "r": corr(la_e, sw_e), "la_err": la_e, "sw_err": sw_e}
 
-# How often the node logs a plain zero, and whether rounding the analyzer
-# value to the node's own tick gives back what the node logged.
-zeros = 0
-same = 0
-for s, a in zip(software, analyzer):
-    if s == 0:
-        zeros += 1
-    if round(a / step) * step == s:
-        same += 1
-print("  reported as zero %.1f%%, rounding reproduces the log %.1f%%"
-      % (100.0 * zeros / len(software), 100.0 * same / len(software)))
+
+def analyse_run(d):
+    la = analyzer_beacons(d)
+    med = statistics.median(x for _, x in la)
+    kept = [(i - med, e / 1000.0) for t, i, e in pair(la, software_samples(d)) if t >= WARMUP_S]
+    return summary(d.name, [a for a, _ in kept], [b for _, b in kept])
+
+
+def report(exp, runs, latex):
+    pooled = summary("Ten runs", [x for r in runs for x in r["la_err"]],
+                     [x for r in runs for x in r["sw_err"]])
+    if latex:
+        print("% " + exp)
+        for i, r in enumerate(runs, 1):
+            s, l = r["sw"], r["la"]
+            print(f"{i:<2} & {r['n']} & {s[1]:.3f} & {s[2]:.3f} & {s[3]:.3f} & "
+                  f"{l[1]:.3f} & {l[2]:.3f} & {l[3]:.3f} & {r['zero']:.1f} \\\\")
+        s, l = pooled["sw"], pooled["la"]
+        n = f"{pooled['n']:,}".replace(",", r"\,")
+        print(r"\addlinespace")
+        print(f"Ten runs & {n} & {s[1]:.3f} & {s[2]:.3f} & {s[3]:.3f} & "
+              f"{l[1]:.3f} & {l[2]:.3f} & {l[3]:.3f} & {pooled['zero']:.1f} \\\\")
+        print(f"% Table 8: software {s[1]:.3f} {s[2]:.3f} | analyzer {l[1]:.3f} {l[2]:.3f}\n")
+        return
+    print(f"=== {exp} ===")
+    print(f"{'run':<5}{'n':<7}{'sw MAE':>8}{'sw sd':>8}{'sw max':>8}"
+          f"{'la MAE':>9}{'la sd':>8}{'la max':>8}{'zero%':>7}{'r':>7}")
+    for i, r in enumerate(runs + [pooled], 1):
+        s, l = r["sw"], r["la"]
+        label = "all" if r is pooled else str(i)
+        print(f"{label:<5}{r['n']:<7}{s[1]:8.3f}{s[2]:8.3f}{s[3]:8.3f}"
+              f"{l[1]:9.3f}{l[2]:8.3f}{l[3]:8.3f}{r['zero']:7.1f}{r['r']:7.3f}")
+    if len(runs) > 2:
+        for key, name in (("la", "analyzer"), ("sw", "software")):
+            lo, hi = ci95([r[key][1] for r in runs])
+            print(f"  95% CI of the {name} MAE over the runs: {lo:.4f} to {hi:.4f}")
+    print()
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("root", nargs="?", default="e3b-e3c-sync_error_contiki")
+    ap.add_argument("--latex", action="store_true")
+    args = ap.parse_args()
+    for exp in ("e3b", "e3c"):
+        dirs = sorted((d for d in Path(args.root).glob(exp + "-run*") if d.is_dir()),
+                      key=lambda d: int(d.name.rsplit("run", 1)[1]))
+        if dirs:
+            report(exp, [analyse_run(d) for d in dirs], args.latex)

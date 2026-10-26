@@ -9,31 +9,33 @@ those raw files, the values the paper reports.
 ## Layout
 
     check_*.py             recompute the tables of one experiment
-    v1-*, v2-*, e1-*..e5-* one folder per experiment of Table 3
+    count_unsafe.py        recompute the unsafe counts of Table 12
+    v1-*, v2-*, e1-*..e5-* one folder per experiment of Table 4
     dot15d4/               the Rust MAC source used for the evaluation
     contiki-tsch-trace/    the Contiki-NG baseline and peer, with its own README
 
 ## Recomputing the paper's tables
 
 Python 3.8 or later. Only `check_e5.py` needs anything outside the standard
-library (NumPy, for the eight million samples of a power capture). Run every
-script from this folder. The repeated experiments print the values of each run
-first and the pooled values the paper reports last.
+library (NumPy). Run every script from this folder. Without arguments, each
+reads the ten runs of its experiment and prints the values of each run, then
+the pooled values and the 95% confidence intervals the paper reports.
 
 | | Table | Folder | Runs | Recompute |
 |---|---|---|---|---|
-| V1, V2a, V2b | 4 | `v1-validation_procedures`, `v2-validation_shared_dedicated_cells` | 3 x 1 h, 2 x 3 x 30 min | `python3 check_v.py` |
-| E1 | 5 | `e1-determinism` | 3 x 3 h per role | `python3 check_e1.py e1-determinism/run1 e1-determinism/run2 e1-determinism/run3` |
-| E2 | 6 | `e2-sync_error` | 3 x 6 h | `python3 check_e2.py e2-sync_error/run1 e2-sync_error/run2 e2-sync_error/run3` |
-| E3a | 7 | `e3a-dot15d4_47slots` | 3 x 4 h | `python3 check_e2.py e3a-dot15d4_47slots/run1 e3a-dot15d4_47slots/run2 e3a-dot15d4_47slots/run3` |
-| E3b | 7 | `e3b-e3c-sync_error_contiki/e3b-run*` | 3 x 4 h | `python3 check_e3.py e3b-e3c-sync_error_contiki/e3b-run1 e3b-e3c-sync_error_contiki/e3b-run2 e3b-e3c-sync_error_contiki/e3b-run3` |
-| E3c | 7 | `e3b-e3c-sync_error_contiki/e3c-run*` | 3 x 4 h | `python3 check_e3.py e3b-e3c-sync_error_contiki/e3c-run1 e3b-e3c-sync_error_contiki/e3c-run2 e3b-e3c-sync_error_contiki/e3c-run3` |
-| E4 | 8 | `e4-interoperability` | 3 x 2 h | `python3 check_e4.py e4-interoperability/data/*-log.txt` |
-| E5 | 9 | `e5-energy` | 1 x 82 s, 2 x 10 s | `python3 check_e5.py e5-energy/e5-82s.ppk2` |
+| V1, V2a, V2b | 5, S6, S7 | `v1-validation_procedures`, `v2-validation_shared_dedicated_cells` | 10 x 1 h, 2 x 10 x 30 min | `python3 check_v.py` |
+| E1 | 6, S2 | `e1-determinism` | 10 x 3 h per board | `python3 check_e1.py` |
+| E2 | 7, S8 | `e2-sync_error` | 10 x 6 h | `python3 check_e2.py` |
+| E3a | 8, S9 | `e3a-dot15d4_47slots` | 10 x 4 h | `python3 check_e2.py e3a-dot15d4_47slots` |
+| E3b, E3c | 8, S9 | `e3b-e3c-sync_error_contiki` | 2 x 10 x 4 h | `python3 check_e3.py` |
+| E4 | 9, S10 | `e4-interoperability/data` | 3 x 10 x 1 h | `python3 check_e4.py` |
+| E5 | Section 5.5 | `e5-energy/ppk2-2026*.ppk2` | 10 x 10 min | `python3 check_e5.py` |
+| E5 | 10 | `e5-energy/ppk2-100khz-80sec.ppk2` | 1 x 80 s at 100 kHz | `python3 check_e5.py e5-energy/ppk2-100khz-80sec.ppk2` |
+| E5, 200 us guard time | Section 5.5 | `e5-energy/ppk2-100khz-80sec-guard200us.ppk2` | 1 x 80 s at 100 kHz | `python3 check_e5.py --guard 200 e5-energy/ppk2-100khz-80sec-guard200us.ppk2` |
+| Unsafe surface | 12 | `dot15d4` | | `python3 count_unsafe.py` |
 
-E3a is the E2 star on a 47-slot slotframe, so `check_e2.py` reads both. E4 ran
-three times: variant A once, and variant B before and after the Contiki-NG
-RMARKER fix.
+E3a is the E2 star on a 47-slot slotframe, so `check_e2.py` reads both. E4 has
+three variants: A, and B before and after the Contiki-NG RMARKER fix.
 
 Two longer single runs back the supplementary material. Both take the same
 scripts:
@@ -43,11 +45,14 @@ scripts:
 | E1, Table S2 | `e1-determinism/longer-run` | 1 x 6 h, analyzer only | `python3 check_e1.py e1-determinism/longer-run` |
 | E2, Table S8 and Figure S2 | `e2-sync_error/longer-run` | 1 x 24 h | `python3 check_e2.py e2-sync_error/longer-run` |
 
-`check_e5.py` takes one capture at a time. `e5-82s.ppk2` is the capture of
-Section 5.5 and Table 9, `e5-10s.csv` repeats it for ten seconds, and
-`e5-10s-200us.csv` is the 200 us guard time of Section 5.5. The phase windows
-of Table 9 are cut for the 2200 us guard time, so on the 200 us capture only
-the mean current and the sleep floor are meaningful.
+`e5-energy/e5-82s.ppk2` is the capture before the timer fix of Section 5.5.
+
+Table 12 counts commit `d47e523`, the evaluated source and the first commit of
+this repository; `dot15d4/` adds the fixes of Sections 5.5 and 5.7. To count
+that commit:
+
+    git archive <first commit> dot15d4 | tar -x -C /tmp
+    python3 count_unsafe.py /tmp/dot15d4
 
 ## Firmware
 
