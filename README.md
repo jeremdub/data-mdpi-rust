@@ -26,12 +26,13 @@ the pooled values and the 95% confidence intervals the paper reports.
 | V1, V2a, V2b | 5, S6, S7 | `v1-validation_procedures`, `v2-validation_shared_dedicated_cells` | 10 x 1 h, 2 x 10 x 30 min | `python3 check_v.py` |
 | E1 | 6, S2 | `e1-determinism` | 10 x 3 h per board | `python3 check_e1.py` |
 | E2 | 7, S8 | `e2-sync_error` | 10 x 6 h | `python3 check_e2.py` |
+| E2h | 7, S8 | `e2h-sync_error-hopping` | 10 x 6 h | `python3 check_e2.py e2h-sync_error-hopping` |
 | E3a | 8, S9 | `e3a-dot15d4_47slots` | 10 x 4 h | `python3 check_e2.py e3a-dot15d4_47slots` |
 | E3b, E3c | 8, S9 | `e3b-e3c-sync_error_contiki` | 2 x 10 x 4 h | `python3 check_e3.py` |
 | E4 | 9, S10 | `e4-interoperability/data` | 3 x 10 x 1 h | `python3 check_e4.py` |
 | E5 | Section 5.5 | `e5-energy/ppk2-2026*.ppk2` | 10 x 10 min | `python3 check_e5.py` |
-| E5 | 10 | `e5-energy/ppk2-100khz-80sec.ppk2` | 1 x 80 s at 100 kHz | `python3 check_e5.py e5-energy/ppk2-100khz-80sec.ppk2` |
-| E5, 200 us guard time | Section 5.5 | `e5-energy/ppk2-100khz-80sec-guard200us.ppk2` | 1 x 80 s at 100 kHz | `python3 check_e5.py --guard 200 e5-energy/ppk2-100khz-80sec-guard200us.ppk2` |
+| E5 | 10 | `e5-energy/ppk2-100khz-5min.ppk2` | 1 x 5 min at 100 kHz | `python3 check_e5.py e5-energy/ppk2-100khz-5min.ppk2` |
+| E5, 200 us guard time | Section 5.5 | `e5-energy/ppk2-guard200us-100khz-5min.ppk2` | 1 x 5 min at 100 kHz | `python3 check_e5.py --guard 200 e5-energy/ppk2-guard200us-100khz-5min.ppk2` |
 | Unsafe surface | 12 | `dot15d4` | | `python3 count_unsafe.py` |
 
 E3a is the E2 star on a 47-slot slotframe, so `check_e2.py` reads both. E4 has
@@ -45,7 +46,6 @@ scripts:
 | E1, Table S2 | `e1-determinism/longer-run` | 1 x 6 h, analyzer only | `python3 check_e1.py e1-determinism/longer-run` |
 | E2, Table S8 and Figure S2 | `e2-sync_error/longer-run` | 1 x 24 h | `python3 check_e2.py e2-sync_error/longer-run` |
 
-`e5-energy/e5-82s.ppk2` is the capture before the timer fix of Section 5.5.
 
 Table 12 counts commit `d47e523`, the evaluated source and the first commit of
 this repository; `dot15d4/` adds the fixes of Sections 5.5 and 5.7. To count
